@@ -1,7 +1,19 @@
-import { useState } from 'react';
-import { StyleSheet, TextInput, FlatList, View, Text } from 'react-native';
+import { useEffect, useState } from 'react';
+import {
+  StyleSheet,
+  TextInput,
+  FlatList,
+  View,
+  Text,
+  LayoutAnimation,
+  ActivityIndicator,
+} from 'react-native';
 import { theme } from '@/theme';
 import ShoppingListItem from '@/components/ShoppingListItem';
+import { getFromStorage, saveToStorage } from '@/utils/storage';
+import * as Haptics from 'expo-haptics';
+
+const STORAGE_KEY = 'shopping-list';
 
 type ShoppingListItemType = {
   id: string;
@@ -11,7 +23,20 @@ type ShoppingListItemType = {
 
 export default function App() {
   const [value, setValue] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
   const [shoppingList, setShoppingList] = useState<ShoppingListItemType[]>([]);
+
+  useEffect(() => {
+    const fetchInitial = async () => {
+      const shoppingList = await getFromStorage(STORAGE_KEY);
+      if (shoppingList) {
+        LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+        setShoppingList(shoppingList);
+        setIsLoading(false);
+      }
+    };
+    fetchInitial();
+  }, []);
 
   const handleSubmit = () => {
     if (value) {
@@ -19,22 +44,38 @@ export default function App() {
         { id: new Date().toTimeString(), name: value, isCompleted: false },
         ...shoppingList,
       ];
+      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
       setShoppingList(newItem);
       setValue('');
+      saveToStorage(STORAGE_KEY, newItem);
     }
   };
 
   const handleDelete = (id: string) => {
     const newShoppingList = shoppingList.filter((item) => item.id !== id);
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setShoppingList(newShoppingList);
+    saveToStorage(STORAGE_KEY, newShoppingList);
   };
 
   const handleToggleCompleted = (id: string) => {
     const newShoppingList = shoppingList.map((item) =>
       item.id === id ? { ...item, isCompleted: !item.isCompleted } : item
     );
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
     setShoppingList(newShoppingList);
+    saveToStorage(STORAGE_KEY, newShoppingList);
   };
+
+  if (isLoading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color={theme.colors.black} />
+      </View>
+    );
+  }
 
   return (
     <FlatList
@@ -74,7 +115,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.colors.white,
-    padding: 12,
+    paddingVertical: 16,
   },
   contentContainer: {
     paddingBottom: 24,
@@ -96,5 +137,11 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 18,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: theme.colors.white,
   },
 });
